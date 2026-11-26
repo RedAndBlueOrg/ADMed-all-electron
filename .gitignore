@@ -1,0 +1,34 @@
+# Node / package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Builds / artifacts
+dist/
+out/
+release/
+*.zip
+*.exe
+*.blockmap
+
+# Env / config
+.env
+.env.local
+
+# Electron cache/data
+*.pid
+*.pid.lock
+*.log
+*.tgz
+*.tmp
+
+# Claude Code hook state (the hooks/agents/skills/settings themselves are committed)
+.claude/hooks/.metrics.log
+.claude/hooks/.notify-test-needed-schema-streak
+.claude/hooks/.post-format-recent
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db

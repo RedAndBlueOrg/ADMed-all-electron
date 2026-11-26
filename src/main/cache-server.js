@@ -1,0 +1,179 @@
+'use strict';
+
+const path = require('path');
+const fs = require('fs');
+const http = require('http');
+const extractZipLib = require('extract-zip');
+const state = require('./state');
+
+async function startCacheServer(cacheRoot) {
+  if (state.cacheServerBase) return state.cacheServerBase;
+  if (state.cacheServerReady) {
+    await state.cacheServerReady;
+    return state.cacheServerBase;
+  }
+
+  const server = http.createServer((req, res) => {
+    const prefix = '/cache/';
+    if (!req.url.startsWith(prefix)) {
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+    const relPath = decodeURIComponent(req.url.slice(prefix.length));
+    const targetPath = path.join(cacheRoot, relPath);
+    if (!targetPath.startsWith(cacheRoot)) {
+      res.statusCode = 400;
+      res.end('invalid path');
+      return;
+    }
+
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Origin');
+      res.end();
+      return;
+    }
+    fs.stat(targetPath, (err, stat) => {
+      if (err || !stat.isFile()) {
+        res.statusCode = 404;
+        res.end();
+        return;
+      }
+
+      const ext = path.extname(targetPath).toLowerCase();
+      const mimeMap = {
+        '.m3u8': 'application/vnd.apple.mpegurl',
+        '.ts': 'video/mp2t',
+        '.mp4': 'video/mp4',
+        '.mp3': 'audio/mpeg',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+      };
+      const mime = mimeMap[ext] || 'application/octet-stream';
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Origin');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'no-cache');
+
+      const rangeHeader = req.headers.range;
+      let start = 0;
+      let end = stat.size - 1;
+
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+        if (match) {
+          start = match[1] ? parseInt(match[1], 10) : 0;
+          end = match[2] ? parseInt(match[2], 10) : stat.size - 1;
+        }
+        if (start > end || start >= stat.size) {
+          res.statusCode = 416;
+          res.setHeader('Content-Range', `bytes */${stat.size}`);
+          res.end();
+          return;
+        }
+        if (end >= stat.size) end = stat.size - 1;
+        res.statusCode = 206;
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`);
+      } else {
+        res.statusCode = 200;
+      }
+
+      res.setHeader('Content-Length', end - start + 1);
+
+      if (req.method === 'HEAD') {
+        res.end();
+        return;
+      }
+
+      if (ext === '.ts') {
+        fs.readFile(targetPath, (readErr, buf) => {
+          if (readErr) { res.statusCode = 500; res.end(); return; }
+          const slice = (rangeHeader) ? buf.subarray(start, end + 1) : buf;
+          res.end(slice);
+        });
+      } else {
+        const stream = fs.createReadStream(targetPath, { start, end });
+        stream.on('error', () => { if (!res.headersSent) res.statusCode = 500; res.end(); });
+        req.on('close', () => { stream.destroy(); });
+        stream.pipe(res);
+      }
+    });
+  });
+
+  state.cacheServerReady = new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      state.cacheServerPort = server.address().port;
+      state.cacheServerBase = `http://127.0.0.1:${state.cacheServerPort}/cache`;
+      resolve(state.cacheServerBase);
+    });
+  });
+
+  state.cacheServer = server;
+  await state.cacheServerReady;
+  return state.cacheServerBase;
+}
+
+async function extractZip(zipPath, targetDir) {
+  await extractZipLib(zipPath, { dir: targetDir });
+}
+
+function findFirstManifest(dirPath) {
+  try {
+    const entries = fs.readdirSync(dirPath);
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry);
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory()) {
+        const nested = findFirstManifest(fullPath);
+        if (nested) return nested;
+      } else if (stat.isFile() && path.extname(fullPath).toLowerCase() === '.m3u8') {
+        return fullPath;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function cleanupCache(cacheRoot, keepPaths) {
+  // 빈 keepPaths 는 "지킬 게 없다"가 아니라 "재생목록을 못 받았다"는 뜻이다.
+  // 그대로 진행하면 시나리오 API 가 한 번 실패한 것만으로 캐시 전체가 삭제된다.
+  if (!keepPaths || keepPaths.size === 0) {
+    console.warn('[cache] cleanup skipped: empty keepPaths');
+    return;
+  }
+
+  try {
+    const entries = fs.readdirSync(cacheRoot, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(cacheRoot, entry.name);
+      if (keepPaths.has(fullPath)) continue;
+      if (entry.name.endsWith('.part')) continue;
+
+      try {
+        if (entry.isDirectory()) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+        } else {
+          fs.rmSync(fullPath, { force: true });
+        }
+      } catch (err) {
+        console.warn('[cache] remove failed:', fullPath, err.message);
+      }
+    }
+  } catch (err) {
+    console.warn('[cache] cleanup skipped:', err.message);
+  }
+}
+
+module.exports = {
+  startCacheServer,
+  extractZip,
+  findFirstManifest,
+  cleanupCache,
+};

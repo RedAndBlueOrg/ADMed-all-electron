@@ -1,0 +1,88 @@
+{
+  "name": "admed-all",
+  "productName": "ADMed All",
+  "version": "1.0.0",
+  "description": "ADMed All (일반기관) for Windows",
+  "main": "main.js",
+  "type": "commonjs",
+  "author": "",
+  "license": "ISC",
+  "keywords": [],
+  "scripts": {
+    "test": "node --test",
+    "start": "electron .",
+    "dev": "electron .",
+    "rebuild": "electron-rebuild -f -w keytar",
+    "dist": "electron-builder --win nsis --publish always",
+    "dist:local": "electron-builder --win nsis --publish never",
+    "pack:dir": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
+    "adm-zip": "^0.5.16",
+    "auto-launch": "^5.0.6",
+    "electron-updater": "^6.3.9",
+    "extract-zip": "^2.0.1",
+    "hls.js": "1.6.15",
+    "ini": "^5.0.0",
+    "keytar": "^7.9.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "electron": "^39.2.7",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "kr.fine.admed.all.pc",
+    "productName": "ADMed All",
+    "asar": true,
+    "asarUnpack": [],
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!release/**",
+      "!test/**",
+      "!.env.example",
+      "!node_modules/.cache/**",
+      "!node_modules/hls.js/dist/*.map",
+      "!node_modules/hls.js/dist/hls-demo.js",
+      "!node_modules/hls.js/src/**"
+    ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": "."
+      },
+      {
+        "from": "images/icon.ico",
+        "to": "."
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "images/icon.ico",
+      "artifactName": "ADMed-All-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ADMed All",
+      "runAfterFinish": true,
+      "allowElevation": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "RedAndBlueOrg",
+        "repo": "ADMed-all-electron"
+      }
+    ]
+  }
+}
