@@ -21,7 +21,7 @@
 | `cache-server.js` | `127.0.0.1` 로컬 HTTP 서버 (HLS `.m3u8`/`.ts` 서빙, Range 지원, path 체크), `extract-zip` ZIP 추출, 15분 미사용 캐시 정리 |
 | `playlist.js` | `preparePlaylist()` — 시나리오 호출 → 자산 다운로드/캐시 → HLS ZIP 추출 → URL/로컬 경로/대기정보/멤버 seq 반환. 다운로드 진행률 broadcast (`download:progress`) |
 | `clinic-ws.js` | `@stomp/stompjs` + `ws` STOMP 클라이언트 (`/topic/clinic/<memberSeq>`), 이벤트 renderer 로 broadcast (`clinic:ws:event`) |
-| `updater.js` | `electron-updater` (패키지 모드만), `update-downloaded` → 즉시 `quitAndInstall` |
+| `updater.js` | `electron-updater` (패키지 모드만), 시작 + 주기 확인(기본 6시간), 시작 직후 받으면 즉시·운영 중 받으면 03시에 `quitAndInstall` |
 
 **lazy 초기화**: `electron.app.getPath()`·`screen` 은 `whenReady` 전 미가용 → `config.js` `appPaths()` lazy getter. `electron-updater` 는 `updater.js` 안에서 함수 내부 `require`.
 

@@ -7,7 +7,6 @@ module.exports = {
   cacheServerReady: null,
   tray: null,
   autoLauncher: null,
-  pendingUpdateInstall: false,
   contentSyncing: false,
   windowState: null,
   saveStateTimer: null,

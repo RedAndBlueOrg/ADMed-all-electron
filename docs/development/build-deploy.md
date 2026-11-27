@@ -35,7 +35,7 @@ npm run dist              # electron-builder --win nsis --publish always (NSIS +
 ## 자동 업데이트 동작 (`src/main/updater.js`)
 - `app.isPackaged` 일 때만 활성 (개발 모드 X)
 - `autoDownload: true`, `autoInstallOnAppQuit: true`
-- `update-downloaded` → 1초 뒤 `quitAndInstall(false, true)` — **콘텐츠 동기화 중이어도 즉시 설치** (재시작 후 동기화 재개). 이 정책 바꾸려면 `state.contentSyncing` 와의 관계 함께 검토 ([impact-map.md](impact-map.md)).
+- 시작 시 + `UPDATE_CHECK_INTERVAL_HOURS`(기본 6) 마다 `checkForUpdates()`. 시작 후 5분 안에 받으면 바로, 운영 중 받으면 `UPDATE_INSTALL_HOUR`(기본 03시)에 `quitAndInstall(false, true)` — 콘텐츠 동기화 여부는 보지 않는다. 자세한 근거는 [../features/updater.md](../features/updater.md), 동기화와의 관계는 [impact-map.md](impact-map.md).
 - `GH_TOKEN`/`GITHUB_TOKEN` 있으면 `requestHeaders` 에 `Authorization: token <...>` (비공개 릴리스)
 - 업데이트 이벤트는 renderer 로 broadcast (`update:available`/`update:ready`/`update:progress`/`update:error`) — 단 현재 renderer 쪽엔 이 이벤트 리스너가 없음 (preload 에 미노출). 진행률은 `overlays.js` 가 `download:progress`(콘텐츠 다운로드) 만 표시.
 
