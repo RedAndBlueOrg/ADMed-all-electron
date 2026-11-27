@@ -45,7 +45,7 @@ function stopOnlineCheck() {
 function attemptRecovery() {
   if (state.recovering) return;
   state.recovering = true;
-  hideError();
+  // 에러 화면은 응답을 받은 뒤 loadPlaylist 가 지운다 — 여기서 지우면 재시도마다 화면이 깜빡인다.
   loadPlaylist({ fromCycle: true, fromRecovery: true })
     .catch(() => {})
     .finally(() => {
@@ -101,6 +101,7 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
     // hasEverPlayed=true(운영 중)면 main 이 미캐시 HLS-ZIP 을 await 하지 않고 백그라운드로 받아
     // 준비된 항목부터 즉시 재생하게 한다. 콜드 스타트(false)는 기존처럼 차단+큰 n/m 오버레이.
     const response = await window.mediaAPI.preparePlaylist(state.hasEverPlayed);
+    hideError();
 
     if (Array.isArray(response)) {
       state.playlist = response;
@@ -213,7 +214,7 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
         state.fetchingContent = false;
         updateContentSpinner();
         log('No playable content available (cold start) — retrying.');
-        showError('No playable content available. Please retry or check network/settings.');
+        showError('재생할 콘텐츠가 없습니다. 잠시 후 다시 확인합니다.', { waiting: true });
       }
       if (retryTimer) clearTimeout(retryTimer);
       retryTimer = setTimeout(() => attemptRecovery(), NO_CONTENT_RETRY_MS);
@@ -227,7 +228,7 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
     state.downloadActive = false;
     updateContentSpinner();
     log(`Playlist load failed: ${err.message}`);
-    showError('Failed to load media due to configuration or network issue. Retrying shortly.');
+    showError('콘텐츠를 불러오지 못했습니다. 잠시 후 다시 시도합니다.', { waiting: !state.hasEverPlayed });
     retryTimer = setTimeout(() => {
       attemptRecovery();
     }, NO_CONTENT_RETRY_MS);

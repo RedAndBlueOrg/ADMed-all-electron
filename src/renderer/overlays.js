@@ -133,10 +133,12 @@ export function cleanupDownloadProgress() {
 
 // --- Error overlay ---
 
-export function showError(message) {
+// waiting=true: 아직 한 번도 재생하지 못한 채 기다리는 중 — 로고 대기 화면에 안내를 작게 띄운다.
+export function showError(message, { waiting = false } = {}) {
   if (!errorOverlay) return;
   const msgEl = errorOverlay.querySelector('.error-message');
   if (msgEl) msgEl.textContent = message || '네트워크 오류가 발생했습니다. 잠시 후 다시 시도합니다.';
+  errorOverlay.classList.toggle('waiting', waiting);
   errorOverlay.classList.add('visible');
   if (statusOverlay) statusOverlay.style.display = 'none';
   state.overlayLocked = false;
