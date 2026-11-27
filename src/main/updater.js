@@ -88,7 +88,14 @@ function startUpdateSchedule(updater, { intervalMs, installHour, now = Date.now,
   };
   // 한 번에 하나만 돈다. 다운로드가 간격보다 길면 electron-updater 는 같은 downloadPromise 를 돌려주는데,
   // 두 check 가 함께 깨어나 quitAndInstall 을 두 번 부르면 두 번째가 quitAndInstallCalled 를 되돌려 종료 때 installer 가 또 뜬다.
-  const check = () => (inflight ??= run().finally(() => { inflight = null; }));
+  // electron-updater 가 멈추면(응답 없는 프록시 등) 재시작 전까지 여기서 계속 합쳐진다 — 로그로 구분되게 남긴다.
+  const check = () => {
+    if (inflight) {
+      log.log('[update] previous check still running');
+      return inflight;
+    }
+    return (inflight = run().finally(() => { inflight = null; }));
+  };
 
   check();
   const checkTimer = setInterval(check, intervalMs);

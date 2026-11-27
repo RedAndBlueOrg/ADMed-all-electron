@@ -46,6 +46,7 @@ main: `src/main/updater.js` `initAutoUpdater()` — `main.js` 의 `whenReady` �
 - 네트워크 단절·서버 503·`latest.yml` 404·다운로드 해시 불일치 → `electron-updater` 의 `error` 이벤트 로그 + `[update] check/download failed (retry next interval)` 경고만. 재생 쪽으로 던지지 않고 다시 확인(유예 안 1분, 그 밖 다음 주기)
 - 03시 `quitAndInstall` 동기 실패(설치 파일 없음 등) → electron-updater 가 안에서 잡아 `error` 이벤트 로그만 남기고 앱은 그대로 재생. 다음 주기 확인이 캐시된 파일로 다시 예약
 - **미해결(이전부터)**: `NsisUpdater.doInstall` 은 installer 를 비동기 spawn 하고 바로 true 를 돌려줘 앱이 먼저 종료된다. 백신 차단 등으로 installer 실행이 실패하면 앱이 꺼진 채 남는다 — 이제 03시 무인 시간대에 일어나므로 아침까지 화면이 꺼져 있을 수 있다. 감시(작업 스케줄러 등)는 별도 과제
+- **남은 위험**: electron-updater 의 확인·다운로드 promise 가 끝나지 않으면(데이터를 안 보내는 프록시 등) electron-updater 자신이 그 promise 를 재사용하므로 앱 재시작 전까지 확인이 멈춘다. 매 주기 `[update] previous check still running` 로그로 보인다. 자동 복구는 `result.cancellationToken.cancel()` 로만 가능 — 별도 과제
 - 03시 예약 뒤 다음 주기 확인에서 다시 받아도 예약은 하나. 새 버전 다운로드가 실패하면 electron-updater 가 받아 둔 파일을 지워 03시 설치가 `error` 로 끝나고, 다음 확인에서 다시 받아 다음 날 설치한다(하루 지연)
 - 버전 비교는 `package.json` 의 `version` — bump 안 하면 업데이트 안 잡힘
 
