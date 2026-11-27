@@ -12,6 +12,10 @@ let retryTimer = null;
 let onlineCheckTimer = null;
 let onlineCheckStarted = false;
 let overlayTimer = null;
+// 화면에 돌고 있는 공지 목록·설정. 사이클 재조회 응답이 같으면 순번과 지나가는 공지를 그대로 둔다 —
+// 사이클마다 0번부터 다시 시작하면 사이클이 공지 한 바퀴보다 짧을 때 뒤쪽 공지가 영영 안 나온다.
+// 공지 바를 숨길 때 비워서, 다시 보일 때 같은 목록이라도 새로 시작하게 한다.
+let shownNoticeKey = '';
 
 // 재생 가능 콘텐츠가 없을 때(새 콘텐츠 미준비/일시 실패) 백그라운드 재시도 간격.
 // 예외 catch 분기의 재시도와 동일한 5초.
@@ -118,7 +122,6 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
       state.waitingInfo = nextWaitingInfo;
 
       state.noticeList = response.noticeList || [];
-      state.noticeIndex = 0;
       state.noticeSpeedPct = normalizePct(response.noticeSpeedPct, 50, 200);
       state.noticeFontPct = normalizePct(response.noticeFontPct, 50, 150);
       // main 이 시나리오 API 대신 저장된 시나리오를 썼거나 회선이 끊긴 상태면 표시. 다음 성공 응답에서 꺼진다.
@@ -142,6 +145,7 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
       showLandingOverlay(true);
       state.playlist = [];
       state.noticeList = [];
+      shownNoticeKey = '';
       renderPlaylist();
       applyLayout('N');
       stopClinicSocket();
@@ -160,9 +164,15 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
     });
 
     if (state.waitingInfo !== 'N') {
-      if (state.noticeList.length) renderNotice(true);
-    } else if (noticeBar) {
-      noticeBar.style.display = 'none';
+      const noticeKey = JSON.stringify([state.noticeList, state.noticeSpeedPct, state.noticeFontPct]);
+      if (state.noticeList.length && noticeKey !== shownNoticeKey) {
+        if (state.noticeIndex >= state.noticeList.length) state.noticeIndex = 0;
+        renderNotice(true);
+      }
+      shownNoticeKey = noticeKey;
+    } else {
+      shownNoticeKey = '';
+      if (noticeBar) noticeBar.style.display = 'none';
     }
 
     state.currentIndex = 0;
