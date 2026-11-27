@@ -12,6 +12,10 @@ let retryTimer = null;
 let onlineCheckTimer = null;
 let onlineCheckStarted = false;
 let overlayTimer = null;
+// 화면에 돌고 있는 공지 목록·설정. 사이클 재조회 응답이 같으면 순번과 지나가는 공지를 그대로 둔다 —
+// 사이클마다 0번부터 다시 시작하면 사이클이 공지 한 바퀴보다 짧을 때 뒤쪽 공지가 영영 안 나온다.
+// 공지 바를 숨길 때 비워서, 다시 보일 때 같은 목록이라도 새로 시작하게 한다.
+let shownNoticeKey = '';
 
 // 재생 가능 콘텐츠가 없을 때(새 콘텐츠 미준비/일시 실패) 백그라운드 재시도 간격.
 // 예외 catch 분기의 재시도와 동일한 5초.
@@ -41,7 +45,7 @@ function stopOnlineCheck() {
 function attemptRecovery() {
   if (state.recovering) return;
   state.recovering = true;
-  hideError();
+  // 에러 화면은 응답을 받은 뒤 loadPlaylist 가 지운다 — 여기서 지우면 재시도마다 화면이 깜빡인다.
   loadPlaylist({ fromCycle: true, fromRecovery: true })
     .catch(() => {})
     .finally(() => {
@@ -97,6 +101,7 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
     // hasEverPlayed=true(운영 중)면 main 이 미캐시 HLS-ZIP 을 await 하지 않고 백그라운드로 받아
     // 준비된 항목부터 즉시 재생하게 한다. 콜드 스타트(false)는 기존처럼 차단+큰 n/m 오버레이.
     const response = await window.mediaAPI.preparePlaylist(state.hasEverPlayed);
+    hideError();
 
     if (Array.isArray(response)) {
       state.playlist = response;
@@ -118,7 +123,6 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
       state.waitingInfo = nextWaitingInfo;
 
       state.noticeList = response.noticeList || [];
-      state.noticeIndex = 0;
       state.noticeSpeedPct = normalizePct(response.noticeSpeedPct, 50, 200);
       state.noticeFontPct = normalizePct(response.noticeFontPct, 50, 150);
       // main 이 시나리오 API 대신 저장된 시나리오를 썼거나 회선이 끊긴 상태면 표시. 다음 성공 응답에서 꺼진다.
@@ -142,6 +146,7 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
       showLandingOverlay(true);
       state.playlist = [];
       state.noticeList = [];
+      shownNoticeKey = '';
       renderPlaylist();
       applyLayout('N');
       stopClinicSocket();
@@ -160,9 +165,15 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
     });
 
     if (state.waitingInfo !== 'N') {
-      if (state.noticeList.length) renderNotice(true);
-    } else if (noticeBar) {
-      noticeBar.style.display = 'none';
+      const noticeKey = JSON.stringify([state.noticeList, state.noticeSpeedPct, state.noticeFontPct]);
+      if (state.noticeList.length && noticeKey !== shownNoticeKey) {
+        if (state.noticeIndex >= state.noticeList.length) state.noticeIndex = 0;
+        renderNotice(true);
+      }
+      shownNoticeKey = noticeKey;
+    } else {
+      shownNoticeKey = '';
+      if (noticeBar) noticeBar.style.display = 'none';
     }
 
     state.currentIndex = 0;
@@ -203,7 +214,7 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
         state.fetchingContent = false;
         updateContentSpinner();
         log('No playable content available (cold start) — retrying.');
-        showError('No playable content available. Please retry or check network/settings.');
+        showError('재생할 콘텐츠가 없습니다. 잠시 후 다시 확인합니다.', { waiting: true });
       }
       if (retryTimer) clearTimeout(retryTimer);
       retryTimer = setTimeout(() => attemptRecovery(), NO_CONTENT_RETRY_MS);
@@ -217,7 +228,7 @@ export async function loadPlaylist({ fromCycle = false, fromRecovery = false } =
     state.downloadActive = false;
     updateContentSpinner();
     log(`Playlist load failed: ${err.message}`);
-    showError('Failed to load media due to configuration or network issue. Retrying shortly.');
+    showError('콘텐츠를 불러오지 못했습니다. 잠시 후 다시 시도합니다.', { waiting: !state.hasEverPlayed });
     retryTimer = setTimeout(() => {
       attemptRecovery();
     }, NO_CONTENT_RETRY_MS);
