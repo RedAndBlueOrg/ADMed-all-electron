@@ -23,7 +23,7 @@ renderer: `src/renderer/weather.js`. main: `weather:config` IPC 핸들러(`main.
 - 아이콘: PTY 1/5 → 🌧️, 3/7 → ❄️, SKY 3 → 🌥️, 4 → ☁️, else ☀️
 
 ## 시계 (`startWeatherClock()`)
-`app.js` 가 항상 시작 (날씨 패널 표시 여부와 무관) — `#weather-title`(월/일), `#weather-meta`(HH:MM) 갱신. 다음 분 경계에 맞춰 `setTimeout` (분당 1회). `renderWeather()` 도 호출 시 시간 갱신.
+`app.js` 가 항상 시작 (날씨 패널 표시 여부와 무관) — `#weather-title`(월/일), `#weather-meta`(HH:MM) 갱신. 다음 분 경계에 맞춰 `setTimeout` (분당 1회). `renderWeather()` 도 호출 시 시간 갱신. `updateWeatherPanel()` 도 패널을 다시 그릴 때 날짜·시계를 바로 그린다(예전 `-`·`정보 준비중` 자리표시는 날씨 키가 없거나 조회가 실패하면 사이클마다 날짜를 지웠다).
 
 ## 갱신 빈도
 `updateWeatherPanel()` 이 `waitingInfo==='B'` 일 때 호출 — `shouldFetchWeatherNow()` (시(hour)나 날(date) 바뀌었으면 true) 면 `startWeather()`. 즉 사실상 시간당 1회 + 모드 진입 시.

@@ -232,8 +232,11 @@ export function updateWeatherPanel() {
   const show = state.waitingInfo === 'B';
   weatherPanel.style.display = show ? 'flex' : 'none';
   if (show) {
-    if (weatherMeta) weatherMeta.textContent = '정보 준비중';
-    if (weatherTitle) weatherTitle.textContent = '-';
+    // 날짜·시계는 날씨 조회와 무관하게 바로 그린다. 예전처럼 '-'·'정보 준비중' 으로 비우면 날씨 키가 없거나
+    // 조회가 실패할 때 사이클마다(loadPlaylist → 여기) 지워져 다음 분 틱까지 날짜가 안 보였다.
+    const now = new Date();
+    if (weatherTitle) weatherTitle.innerHTML = formatDateHtml(now);
+    if (weatherMeta) weatherMeta.innerHTML = formatTimeHtml(now);
     if (weatherContent) weatherContent.textContent = '날씨 정보를 불러오는 중입니다...';
     if (lastWeatherInfo) {
       renderWeather(lastWeatherInfo);
