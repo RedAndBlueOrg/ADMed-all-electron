@@ -46,6 +46,7 @@
 
 - **연결**: `src/main/updater.js` `quitAndInstall` ↔ `src/main/state.js` `contentSyncing` ↔ `src/main/playlist.js` `preparePlaylist()` (시작 시 `contentSyncing = true`, 끝/에러 시 `false`)
 - **이유**: 현재 정책은 "설치 시점(시작 직후 또는 03시)이 오면 동기화 중이어도 설치, 재시작 후 동기화 재개". 정책을 "동기화 끝날 때까지 대기" 로 바꾸려면 두 모듈을 함께 봐야 함. 코드상 직접 호출 관계 없이 플래그로만 연결됨.
+- **주의**: `quitAndInstall` 을 두 번 부르면 두 번째가 `quitAndInstallCalled` 를 false 로 되돌려 종료 때 installer 가 한 번 더 뜬다(electron-updater `BaseUpdater.js`) — `startUpdateSchedule()` 의 check 단일 실행(`inflight`)이 막는다.
 - **변경 시 검사**: `updater.js` 의 `startUpdateSchedule()` 설치 분기 ↔ `playlist.js` 의 `state.contentSyncing` 토글 ↔ `docs/features/updater.md`.
 
 ## `state.currentIndex` ↔ `playNext()` 의 전진 ↔ main 이 `streamUrl` 없이 push 하는 경로

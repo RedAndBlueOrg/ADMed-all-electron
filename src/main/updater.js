@@ -5,7 +5,6 @@ const { app, BrowserWindow } = require('electron');
 // 확인 간격 기본 6시간(하루 4회): 재부팅하지 않는 기기도 릴리스 후 6시간 안에 받는다.
 // GitHub provider 는 확인 1회에 releases.atom + latest.yml 2건만 받으므로 한 현장(같은 공인 IP)에 기기가 여러 대여도 부담이 없다.
 const DEFAULT_CHECK_INTERVAL_HOURS = 6;
-// 최소 1시간은 유예(5분)보다 길어야 한다 — 유예 안에서 check() 두 개가 동시에 install() 을 부르지 않게.
 const MIN_CHECK_INTERVAL_HOURS = 1;
 // 최대 1주: setInterval 은 2^31-1ms(약 596시간)를 넘으면 1ms 로 바뀌어 쉬지 않고 확인한다.
 const MAX_CHECK_INTERVAL_HOURS = 24 * 7;
@@ -37,15 +36,14 @@ function msUntilHour(nowMs, hour) {
 
 // updater 는 checkForUpdates()/quitAndInstall() 만 쓴다(테스트에서 가짜로 바꿀 수 있게).
 // 확인·다운로드 실패는 로그만 남기고 다시 시도한다(유예 안 1분, 그 밖은 다음 주기) — 재생 쪽으로 던지지 않는다.
-function startUpdateSchedule(updater, { intervalMs, installHour, now = Date.now, log = console }) {
-  const startedAt = now();
-  // 시계가 뒤로 보정되면(경과 < 0) 유예로 치지 않는다 — 운영 중 즉시 설치보다 03시로 미루는 쪽이 안전하다.
-  const inStartupGrace = () => {
-    const elapsed = now() - startedAt;
-    return elapsed >= 0 && elapsed <= STARTUP_INSTALL_GRACE_MS;
-  };
+// 유예는 단조 시계(uptime)로 잰다 — 부팅 직후 NTP 가 벽시계를 옮겨도 흔들리지 않게. 벽시계(now)는 설치 시각 판정에만 쓴다.
+function startUpdateSchedule(updater, { intervalMs, installHour, now = Date.now, uptime = () => performance.now(), log = console }) {
+  const startedAt = uptime();
+  const inStartupGrace = () => uptime() - startedAt <= STARTUP_INSTALL_GRACE_MS;
   let installTimer = null;
   let retryTimer = null;
+  let inflight = null;
+  let stopped = false;
 
   const install = () => {
     try {
@@ -60,37 +58,43 @@ function startUpdateSchedule(updater, { intervalMs, installHour, now = Date.now,
   const installInWindow = () => {
     installTimer = null;
     if (new Date(now()).getHours() === installHour) {
+      log.log(`[update] in install hour ${installHour}:00 - installing now`);
       install(); // 설치를 못 하면 다음 주기 확인이 캐시된 파일로 다시 예약한다
       return;
     }
-    installTimer = setTimeout(installInWindow, msUntilHour(now(), installHour));
+    const delay = msUntilHour(now(), installHour);
+    log.log(`[update] install at ${installHour}:00 (in ${Math.round(delay / 60000)} min) or on quit`);
+    installTimer = setTimeout(installInWindow, delay);
   };
 
-  const check = async () => {
+  const run = async () => {
     try {
       const result = await updater.checkForUpdates();
       if (!result?.downloadPromise) return;
       await result.downloadPromise;
     } catch (err) {
-      const retry = inStartupGrace() && !retryTimer;
+      const retry = !stopped && inStartupGrace() && !retryTimer;
       log.warn(`[update] check/download failed (retry ${retry ? 'in 1 min' : 'next interval'}):`, err?.message || err);
       if (retry) retryTimer = setTimeout(() => { retryTimer = null; check(); }, STARTUP_RETRY_MS);
       return;
     }
+    if (stopped) return;
     if (inStartupGrace()) {
       log.log('[update] downloaded right after startup - installing now');
       install();
       return;
     }
-    if (installTimer) return;
-    log.log(`[update] downloaded - install at ${installHour}:00 (in ${Math.round(msUntilHour(now(), installHour) / 60000)} min) or on quit`);
-    installInWindow();
+    if (!installTimer) installInWindow();
   };
+  // 한 번에 하나만 돈다. 다운로드가 간격보다 길면 electron-updater 는 같은 downloadPromise 를 돌려주는데,
+  // 두 check 가 함께 깨어나 quitAndInstall 을 두 번 부르면 두 번째가 quitAndInstallCalled 를 되돌려 종료 때 installer 가 또 뜬다.
+  const check = () => (inflight ??= run().finally(() => { inflight = null; }));
 
   check();
   const checkTimer = setInterval(check, intervalMs);
   return {
     stop() {
+      stopped = true;
       clearInterval(checkTimer);
       clearTimeout(installTimer);
       clearTimeout(retryTimer);

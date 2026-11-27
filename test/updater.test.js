@@ -17,6 +17,7 @@ function fakeUpdater(steps) {
       if (step === 'none') return { isUpdateAvailable: false };
       if (step === 'download-fail') return { isUpdateAvailable: true, downloadPromise: Promise.reject(new Error('sha512 checksum mismatch')) };
       if (step === 'slow') return { isUpdateAvailable: true, downloadPromise: new Promise((r) => setTimeout(r, STARTUP_INSTALL_GRACE_MS + 60 * 1000)) };
+      if (step === 'long') return { isUpdateAvailable: true, downloadPromise: new Promise((r) => setTimeout(r, 100 * 60 * 1000)) };
       if (step === 'grace') return { isUpdateAvailable: true, downloadPromise: new Promise((r) => setTimeout(r, STARTUP_INSTALL_GRACE_MS)) };
       return { isUpdateAvailable: true, downloadPromise: Promise.resolve(['ADMed-All-1.0.1-Setup.exe']) };
     },
@@ -29,10 +30,11 @@ function fakeUpdater(steps) {
   return { updater, calls, log };
 }
 
-function start(t, steps, startAt = new Date(2026, 10, 27, 10, 0, 0), now = () => Date.now()) {
+// now: 벽시계(기본 mock Date). uptime: 단조 시계 — mock timers 가 performance.now 를 바꾸지 않으므로 mock Date 로 주입.
+function start(t, steps, startAt = new Date(2026, 10, 27, 10, 0, 0), now = () => Date.now(), intervalMs = 6 * HOUR) {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: startAt });
   const fake = fakeUpdater(steps);
-  const schedule = startUpdateSchedule(fake.updater, { intervalMs: 6 * HOUR, installHour: 3, now, log: fake.log });
+  const schedule = startUpdateSchedule(fake.updater, { intervalMs, installHour: 3, now, uptime: () => Date.now(), log: fake.log });
   t.after(() => schedule.stop());
   return fake;
 }
@@ -71,7 +73,7 @@ test('시작하자마자 확인하고, 이후 간격마다 다시 확인한다',
   assert.equal(calls.check, 1);
   await advance(t, 1);
   assert.equal(calls.check, 2);
-  await advance(t, 18 * HOUR);
+  for (let i = 0; i < 3; i++) await advance(t, 6 * HOUR); // 한 tick 안의 간격들은 진행 중 확인에 합쳐지므로 나눠 진행
   assert.equal(calls.check, 5);
   assert.equal(calls.install.length, 0);
 });
@@ -170,14 +172,41 @@ test('유예 경계: 정확히 5분에 받으면 바로 설치한다', async (t)
   assert.equal(calls.install.length, 1);
 });
 
-test('시계가 뒤로 보정되면 유예로 치지 않고 03시로 미룬다', async (t) => {
+test('운영 중 시계가 뒤로 보정돼도 유예로 치지 않고 03시에 설치한다', async (t) => {
   let skew = 0; // 벽시계만 움직이고 타이머는 그대로 두려고 now 에 시차를 더한다
   const { calls } = start(t, ['none', 'update'], undefined, () => Date.now() + skew);
   await flush();
-  skew = -7 * HOUR; // NTP 가 시계를 7시간 되돌림 → 6시간 뒤 확인의 경과가 -1시간
-  await advance(t, 6 * HOUR);
+  skew = -7 * HOUR; // NTP 가 벽시계를 7시간 되돌림(10:00→03:00) — 단조 경과는 그대로
+  await advance(t, 6 * HOUR); // 벽시계 09:00 에 받음
   assert.equal(calls.check, 2);
   assert.equal(calls.install.length, 0);
+  await advance(t, 18 * HOUR); // 벽시계 다음 03:00
+  assert.equal(calls.install.length, 1);
+  assert.equal(new Date(calls.install[0].at.getTime() + skew).getHours(), 3);
+});
+
+test('부팅 직후 NTP 가 시계를 되돌려도 유예 안 재시도·즉시 설치는 그대로다', async (t) => {
+  let skew = 0;
+  const { calls } = start(t, ['fail', 'update'], undefined, () => Date.now() + skew);
+  await flush();
+  await advance(t, 30 * 1000);
+  skew = -3 * MIN; // RTC 가 3분 빨랐던 기기
+  await advance(t, 30 * 1000); // 1분 재시도
+  assert.equal(calls.check, 2);
+  assert.equal(calls.install.length, 1);
+});
+
+test('다운로드가 간격보다 길어도 확인은 하나만 돌고, 03시대에 끝나면 설치는 1번이다', async (t) => {
+  // 01:30 시작·간격 1시간·다운로드 100분 → 03:10 완료. 02:30 간격 확인은 진행 중인 확인에 합쳐진다.
+  const { calls } = start(t, ['none', 'long'], new Date(2026, 10, 27, 0, 30), undefined, 1 * HOUR);
+  await flush();
+  await advance(t, 1 * HOUR); // 01:30 확인 → 다운로드 시작
+  await advance(t, 1 * HOUR); // 02:30 — 진행 중
+  assert.equal(calls.check, 2);
+  await advance(t, 40 * MIN); // 03:10 완료
+  assert.equal(calls.install.length, 1);
+  await advance(t, 2 * HOUR);
+  assert.equal(calls.install.length, 1);
 });
 
 test('설치 시각대(03:00~03:59)에 받으면 바로 설치한다', async (t) => {

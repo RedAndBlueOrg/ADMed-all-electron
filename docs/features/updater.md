@@ -17,7 +17,8 @@ main: `src/main/updater.js` `initAutoUpdater()` — `main.js` 의 `whenReady` �
    - 시작 후 **5분**(`STARTUP_INSTALL_GRACE_MS`) 안에 다운로드가 끝나면 바로 `quitAndInstall(false, true)` (`isSilent=false`, `isForceRunAfter=true`)
    - 유예 안에서 확인·다운로드가 실패하면 1분(`STARTUP_RETRY_MS`)마다 다시 확인 — 부팅 직후 네트워크가 늦게 붙는 경우. 유예 밖 실패는 다음 주기
    - 그 뒤에 끝나면 **`UPDATE_INSTALL_HOUR` 시대**(로컬, 기본 03:00~03:59)에 설치. 지금이 그 시대면 바로, 아니면 다음 정각까지 `setTimeout` 1개만 예약. 타이머가 울릴 때 시각을 다시 보고, 시계 보정·절전으로 어긋나 다른 시각이면 다시 예약한다. 그 전에 앱이 정상 종료되면 `autoInstallOnAppQuit` 가 설치
-   - 유예 판정은 벽시계 경과로 잰다. 시계가 뒤로 보정돼 경과가 음수면 유예로 치지 않는다(즉시 설치 대신 03시)
+   - 유예는 단조 시계(`performance.now()`)로 잰다 — 부팅 직후 NTP 가 벽시계를 옮겨도 유예·재시도가 흔들리지 않는다. 벽시계는 설치 시각 판정에만 쓴다
+   - 확인은 한 번에 하나만 돈다. 다운로드가 간격보다 길면 다음 간격 확인은 진행 중인 것에 합쳐진다 — 두 확인이 같은 다운로드를 기다리다 `quitAndInstall` 을 두 번 부르면 electron-updater 가 `quitAndInstallCalled` 를 되돌려 종료 때 installer 를 한 번 더 띄운다
    - `checkForUpdatesAndNotify` 대신 `checkForUpdates` — 전자는 받은 뒤 OS 알림을 띄워 사이니지 화면에 보인다
 
 ## 시점 근거
