@@ -81,3 +81,10 @@ test('의료 전용 대기현황(Y)은 N 으로 바꿔 띄우지 않고, 나머�
     assert.equal(api.normalizeWaitingInfo(input), expected, String(input));
   }
 });
+
+// 공개 설치본(app.asar)에 개발 문서·에이전트 설정을 넣지 않는다. .claude/ 에는 gitignore 된 로컬 설정도 생긴다.
+test('설치본 asar 에서 개발 문서·에이전트 설정을 뺀다', () => {
+  for (const glob of ['!.claude/**', '!CLAUDE.md', '!README.md', '!docs/**', '!test/**', '!.env.example']) {
+    assert.ok(pkg.build.files.includes(glob), glob);
+  }
+});
