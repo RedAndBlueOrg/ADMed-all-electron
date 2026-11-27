@@ -196,3 +196,8 @@
 - 변경: 의료기관 저장소(ADMed-2-electron main `a92c300`, 2.1.15)에서 갈라 일반기관 전용 저장소 `RedAndBlueOrg/ADMed-all-electron` 으로. appId `kr.fine.admed.all.pc`, 이름 `ADMed All`, 데이터 폴더 `%APPDATA%/ADMed All`, 공지 `/dapi/device/notice?id={serial}`, `waitingInfo=Y`→`N`, 업데이트 대상 이 저장소, 버전 1.0.0. 이 위의 2.x 기록은 의료기관 앱 이력이다.
 - 영향 범위: main(config·scenario-api·playlist·tray) / renderer(layout·overlays) / index.html / 빌드(package.json·release.yml)
 - 다음 단계: 실제 일반기관 v2 backend 연동 시험, Windows 실기에서 의료기관 앱과 동시 설치·자동실행 분리 확인, secrets(ENV_FILE·GH_TOKEN) 등록 후 v1.0.0 릴리스(오너 결정)
+
+## 2026-11-27 공지 순환(R3) + 재생 중 로고 제거 + 대기 화면 (1.0.0 유지)
+- 변경: 공지 순번을 재생목록 사이클과 따로 이어 돌림(목록 변경 때만 범위 보정) / 영상 로딩·버퍼링 배경 로고 제거 / 한 번도 재생 못 한 채 기다릴 때만 로고 대기 화면 + 짧은 한국어 안내(재시도 중 깜빡임 없음)
+- 영향 범위: renderer(playlist·overlays) / index.html. main·IPC 변경 없음
+- 다음 단계: Windows 실기에서 공지 5개·짧은 사이클, 시나리오 없음 부팅 화면 확인

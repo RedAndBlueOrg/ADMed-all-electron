@@ -77,6 +77,18 @@
 - **변경 시 검사**: `startOnlineCheck` 호출처를 늘리거나 `loadPlaylist` 성공 분기를 고칠 때 `stopOnlineCheck()` 가 성공 경로에 남아 있는지. CDP 로 `window.dispatchEvent(new Event('offline'))` 후 `currentTime` 이 10초 이상 연속 증가하는지.
 - **사고 이력**: incident-log 2026-11-13
 
+## 공지 순번 ↔ 재생목록 사이클
+- **연결**: `src/renderer/playlist.js` `shownNoticeKey`(사이클 재조회 때 재시작 여부) ↔ `src/renderer/notice.js` `onanimationend` 연쇄(순번 전진) ↔ 공지 바를 숨기는 곳(`applyLayout('N')`·시리얼 없음 분기)
+- **이유**: 공지는 `animationend` 연쇄로만 다음으로 넘어간다. 사이클마다 재시작하면 뒤쪽 공지가 안 나오고(R3), 바를 숨겨 연쇄가 끊겼는데 키를 안 비우면 다시 보일 때 공지가 멈춘다.
+- **변경 시 검사**: 공지 바 표시/숨김을 새로 추가하면 `shownNoticeKey = ''` 도 같이. `node --test test/notice-rotation.test.js`.
+- **사고 이력**: incident-log 2026-11-27 (R3)
+
+## 에러 오버레이 대기 모드 ↔ 재시도
+- **연결**: `showError(msg, { waiting })` (`src/renderer/overlays.js`) ↔ `loadPlaylist` 의 `preparePlaylist` 응답 직후 `hideError()` ↔ `attemptRecovery`(재시도 시작 때 지우지 않음)
+- **이유**: 한 번도 재생 못 했을 때 로고 대기 화면이 5초 재시도마다 깜빡이지 않으려면 지우는 시점이 응답 직후 한 곳이어야 한다. 재시도 시작에 `hideError()` 를 되살리면 깜빡임이 돌아온다.
+- **변경 시 검사**: 시나리오 없음·오프라인 저장본 없음 콜드 스타트에서 대기 화면 유지, 재생 후 빈 시나리오·서버 끊김에서 에러·로고가 안 뜨는지.
+- **사고 이력**: incident-log 2026-11-27 (재생 중 로고)
+
 ## `package.json` `name`·`productName`·`build.appId`·`AUTO_LAUNCH_NAME` ↔ 의료기관 앱과 동시 설치
 - **연결**: `package.json` 최상위 `name`(설치 폴더·updater 캐시) · `productName`(Electron 앱 이름 → `userData` = `%APPDATA%/ADMed All`) · `build.appId`(NSIS GUID) · `build.publish` · `src/main/config.js` `AUTO_LAUNCH_NAME`
 - **이유**: 의료기관 앱(ADMed-2-electron: `admed`/`ADMed`/`kr.fine.admed.pc`)과 하나라도 같아지면 한 PC 에서 설치·데이터 폴더·자동실행·업데이트가 서로 덮어쓴다(README 표). 데이터 폴더가 같으면 `cleanupCache` 가 상대 앱 미디어를 지운다.
