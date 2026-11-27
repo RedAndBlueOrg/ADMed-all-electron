@@ -93,4 +93,5 @@
 ## `package.json` `name`·`productName`·`build.appId`·`AUTO_LAUNCH_NAME` ↔ 의료기관 앱과 동시 설치
 - **연결**: `package.json` 최상위 `name`(설치 폴더·updater 캐시) · `productName`(Electron 앱 이름 → `userData` = `%APPDATA%/ADMed All`) · `build.appId`(NSIS GUID) · `build.publish` · `src/main/config.js` `AUTO_LAUNCH_NAME`
 - **이유**: 의료기관 앱(ADMed-2-electron: `admed`/`ADMed`/`kr.fine.admed.pc`)과 하나라도 같아지면 한 PC 에서 설치·데이터 폴더·자동실행·업데이트가 서로 덮어쓴다(README 표). 데이터 폴더가 같으면 `cleanupCache` 가 상대 앱 미디어를 지운다.
-- **변경 시 검사**: `npm test`(test/general-app.test.js) + `npm run dist:local` 산출물의 `resources/app-update.yml`·NSIS APP_ID 확인.
+- **자동 실행 이름**: auto-launch 5.x 는 HKCU Run 값 이름을 `name` 옵션이 아니라 exe 이름(=`productName`)에서 만든다. StartupApproved·옛 바로가기 정리는 `AUTO_LAUNCH_NAME` 을 쓰므로 `productName` 과 `AUTO_LAUNCH_NAME` 이 같아야 같은 항목을 가리킨다.
+- **변경 시 검사**: `npm test`(test/general-app.test.js, test/auto-launch.test.js) + `npm run dist:local` 산출물의 `resources/app-update.yml`·NSIS APP_ID 확인.
