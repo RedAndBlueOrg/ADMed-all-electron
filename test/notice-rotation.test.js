@@ -71,13 +71,14 @@ test('R3 공지 목록이 줄어 순번이 범위를 넘으면 처음부터, 범
   for (let i = 0; i < 4; i += 1) { shown(); finishNotice(); }
   assert.equal(shown(), '5');
 
-  window.mediaAPI.preparePlaylist = async () => response(notices(['A', 'B']));
+  // 순번 4 는 3개 범위 밖 → 0('A'). 나머지 연산(4 % 3 = 1 → 'B')과 결과가 갈리는 경우로 고른다.
+  window.mediaAPI.preparePlaylist = async () => response(notices(['A', 'B', 'C']));
   await loadPlaylist({ fromCycle: true });
   assert.equal(shown(), 'A');
   finishNotice();
   assert.equal(shown(), 'B');
 
-  window.mediaAPI.preparePlaylist = async () => response(notices(['A', 'B', 'C']));
+  window.mediaAPI.preparePlaylist = async () => response(notices(['A', 'B', 'C', 'D']));
   await loadPlaylist({ fromCycle: true });
   assert.equal(shown(), 'B');
   finishNotice();
@@ -96,7 +97,7 @@ test('R3 모드 N 으로 숨겼다가 다시 켜면 같은 목록이라도 공�
   assert.equal(frames.length, 1);
 });
 
-test('재생목록 1개짜리는 항목이 끝날 때마다 시나리오를 다시 받는다', async () => {
+test('재생목록 1개짜리는 항목이 끝날 때마다 시나리오를 다시 받는다', { timeout: 5000 }, async () => {
   let calls = 0;
   let resolveThird;
   const third = new Promise((resolve) => { resolveThird = resolve; });

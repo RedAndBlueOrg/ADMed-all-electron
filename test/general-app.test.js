@@ -29,6 +29,13 @@ test('앱 식별자는 일반기관(ADMed All) 전용이다', () => {
   assert.ok(read('src/main/tray.js').includes("setToolTip('ADMed All')"));
 });
 
+test('영상 로딩·버퍼링 중 video 배경에 로고를 깔지 않는다(재생 중 로고 노출)', () => {
+  const css = read('index.html');
+  const videoRules = css.match(/(^|[\s,}])video[^{]*\{[^}]*\}/g) || [];
+  assert.ok(videoRules.length > 0, 'video 규칙을 찾지 못함');
+  for (const rule of videoRules) assert.ok(!/background-image/.test(rule), rule);
+});
+
 test('의료기관 고정값(admed.kr·ADMed-2-electron·2.1.x)이 앱 코드에 남지 않는다', () => {
   const files = ['main.js', 'preload.js', 'index.html', 'package.json',
     ...['src/main', 'src/renderer'].flatMap((d) => fs.readdirSync(path.join(root, d)).map((f) => `${d}/${f}`))];
